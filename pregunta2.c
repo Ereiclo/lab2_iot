@@ -1,5 +1,6 @@
 #include <Keypad.h>
 #include <LiquidCrystal.h>
+#include <Servo.h>
 
 #define TRIGGER 25
 #define ECHO 23
@@ -10,6 +11,7 @@
 #define LED_R 35
 #define LED_V 33
 #define CONTRAST_PIN 7
+#define SERVO_PIN 10
 // estados
 #define DEFAULT_STATE 10
 #define INSERT_PASS 0
@@ -24,6 +26,7 @@ const int COLUMN_NUM = 4;
 //
 //
 //
+Servo servo1;  
 
 int state = 0;
 int writeRequired = 1;
@@ -54,6 +57,9 @@ char inputStringIter = 0;
 const int rs = 12, en = 11, d4 = 2, d5 = 3, d6 = 4, d7 = 5;
 LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
 
+unsigned long open_time = 0; 
+
+
 void setup()
 {
     Serial.begin(9600);
@@ -66,6 +72,8 @@ void setup()
     lcd.begin(16, 2);
     lcd.clear();
     // Print a message to the LCD.
+  	servo1.attach(SERVO_PIN);
+    servo1.write(0);
 
     pinMode(LED_A, OUTPUT);
     pinMode(LED_R, OUTPUT);
@@ -154,7 +162,8 @@ bool isClose()
 
     return distance <= 30.f;
 }
-
+#define CLOSE_TIME 3000
+//millis() - open_time == CLOSE_TIME
 void display_smth()
 {
   if (writeRequired == 1){
@@ -163,6 +172,8 @@ void display_smth()
     case CORRECT_PASS:
       lcd.clear();
       lcd.print("PASA");
+      servo1.write(120);
+      open_time  = millis() + CLOSE_TIME;
       break;
     case INSERT_PASS:
       lcd.clear();
@@ -176,6 +187,12 @@ void display_smth()
     }
     writeRequired= 0;
   }
+  
+  //if(state == CORRECT_PASS && millis() - open_time == CLOSE_TIME) {
+  //  state = INSERT_PASS; 
+  //  writeRequired = 1;
+  //  servo1.write(0);
+  //}
 }
 
 void display_off()
@@ -197,12 +214,23 @@ void handleLeds()
         {
         case CORRECT_PASS:
             digitalWrite(LED_V, LOW);
+            
             break;
         case INVALID_INPUT:
         case WRONG_PASS:
             digitalWrite(LED_R, LOW);
         }
     }
+}
+
+void handleServo() {
+  if(millis() > open_time) {
+    if (state == CORRECT_PASS ) {
+	    state = INSERT_PASS;
+    }
+    writeRequired = 1;
+    servo1.write(0);
+  }
 }
 
 void loop()
@@ -221,8 +249,11 @@ void loop()
     {
         state = INSERT_PASS;
         writeRequired = 1;
+        servo1.write(0); //close when far
         display_off();
     }
+  	handleServo();
 
     handleLeds();
 }
+
